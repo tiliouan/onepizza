@@ -1,0 +1,64 @@
+version: 2.1
+
+executors:
+  macos-executor:
+    macos:
+      xcode: "14.3.1" # Replace with the Xcode version you need
+
+jobs:
+  build:
+    executor: macos-executor
+    steps:
+      - checkout
+      - run:
+          name: Install Ruby and Gems
+          command: |
+            gem install cocoapods xcodeproj
+      - run:
+          name: Run Ruby Script to Configure Pods
+          command: ruby path/to/your_script.rb
+      - run:
+          name: Install CocoaPods Dependencies
+          command: |
+            pod install --project-directory=onepizza
+      - run:
+          name: Build the App
+          command: |
+            xcodebuild -workspace onepizza.xcworkspace \
+                       -scheme OnePizza \
+                       -sdk iphoneos \
+                       -configuration Release \
+                       archive \
+                       -archivePath $HOME/build/OnePizza.xcarchive
+      - run:
+          name: Export IPA
+          command: |
+            xcodebuild -exportArchive \
+                       -archivePath $HOME/build/OnePizza.xcarchive \
+                       -exportPath $HOME/build \
+                       -exportOptionsPlist onepizza/ExportOptions.plist
+      - persist_to_workspace:
+          root: $HOME/build
+          paths:
+            - OnePizza.ipa
+
+  deploy:
+    docker:
+      - image: circleci/python:3.8  # Use an appropriate image if needed
+    steps:
+      - attach_workspace:
+          at: /workspace
+      - run:
+          name: Upload IPA to Artifact Storage
+          command: |
+            curl -T /workspace/OnePizza.ipa https://example.com/upload
+            # Ensure this URL is a valid endpoint for your artifact storage
+
+workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
